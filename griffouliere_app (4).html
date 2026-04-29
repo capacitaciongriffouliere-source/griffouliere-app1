@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Griffouliere — Matriz de Habilitación</title>
+<!-- PapaParse para leer CSV de Google Sheets -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap');
+:root{
+  --bg:#111317;--surface:#1a1d24;--surface2:#22262f;--border:#2e3340;
+  --red:#C41E24;--green:#1a7a3c;--green-bg:#0d2e1a;--green-light:#22c55e;
+  --amber:#d97706;--amber-light:#fbbf24;--blue-bg:#0d1526;--blue-light:#60a5fa;
+  --orange:#ea580c;--orange-bg:#1c0f06;--orange-light:#fb923c;
+  --text:#e8eaf0;--text-muted:#8892a4;--text-dim:#4a5568;
+  --charcoal:#2D2D2D;--font-d:'Barlow Condensed',sans-serif;--font-b:'Barlow',sans-serif;
+  --W:#FFFFFF;--AA:#FAFAFA;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height:100vh;overflow-x:hidden}
+
+/* ── NAV ── */
+.nav{background:var(--charcoal);border-bottom:3px solid var(--red);padding:0 20px;
+     display:flex;align-items:center;gap:16px;height:52px;position:sticky;top:0;z-index:100}
+.nav-logo{font-family:var(--font-d);font-weight:800;font-size:18px;letter-spacing:2px;color:#fff;text-transform:uppercase}
+.nav-logo span{color:var(--red)}
+.nav-badge{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:1px}
+.nav-right{margin-left:auto;display:flex;gap:12px;align-items:center}
+.last-upd{font-size:11px;color:var(--text-muted)}
+.btn{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);
+     padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:var(--font-b);transition:all .15s}
+.btn:hover{border-color:var(--text-muted);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── ALERT ── */
+.alert-wrap{display:none}
+.alert-wrap.show{display:block}
+.alert-box{background:var(--orange-bg);border:1px solid var(--orange);border-left:4px solid var(--orange);
+           padding:12px 16px;display:flex;align-items:flex-start;gap:12px;animation:slideIn .3s ease}
+.alert-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.alert-body{flex:1}
+.alert-title{font-family:var(--font-d);font-weight:700;font-size:14px;color:var(--orange-light);letter-spacing:.5px;margin-bottom:4px}
+.alert-detail{font-size:13px;color:#ccc;line-height:1.6}
+.miss-tag{display:inline-block;background:rgba(234,88,12,.2);border:1px solid rgba(234,88,12,.4);
+          color:var(--orange-light);padding:1px 7px;border-radius:3px;font-size:11px;font-weight:600;margin:2px 3px}
+.alert-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;padding:0 4px}
+.alert-close:hover{color:#fff}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── LAYOUT ── */
+.main{display:flex;height:calc(100vh - 52px)}
+
+/* ── SIDEBAR ── */
+.sidebar{width:280px;background:var(--surface);border-right:1px solid var(--border);
+         display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sb-head{padding:14px 16px 10px;border-bottom:1px solid var(--border)}
+.sb-title{font-family:var(--font-d);font-weight:700;font-size:12px;letter-spacing:1.5px;
+          text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+.search{position:relative}
+.search input{width:100%;background:var(--surface2);border:1px solid var(--border);
+              color:var(--text);padding:7px 10px 7px 30px;border-radius:5px;
+              font-family:var(--font-b);font-size:13px;outline:none;transition:border-color .2s}
+.search input:focus{border-color:var(--red)}
+.search-ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:13px}
+
+.chips{display:flex;gap:5px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.chip{padding:3px 8px;border-radius:10px;font-size:10px;font-weight:600;cursor:pointer;
+      border:1px solid transparent;transition:all .15s;letter-spacing:.3px}
+.chip-all{border-color:var(--text-dim);color:var(--text-muted)}
+.chip-all.on{background:var(--surface2);border-color:var(--text-muted);color:#fff}
+.chip-serv{border-color:#1d4ed8;color:var(--blue-light)}
+.chip-serv.on{background:var(--blue-bg)}
+.chip-puede{border-color:var(--green);color:var(--green-light)}
+.chip-puede.on{background:var(--green-bg)}
+.chip-falta{border-color:var(--orange);color:var(--orange-light)}
+.chip-falta.on{background:var(--orange-bg)}
+
+.cc-sel-wrap{padding:8px 12px;border-bottom:1px solid var(--border)}
+.cc-sel-wrap select{width:100%;background:var(--surface2);border:1px solid var(--border);
+                    color:var(--text);padding:6px 8px;border-radius:4px;
+                    font-family:var(--font-b);font-size:12px;outline:none}
+.cc-sel-wrap select:focus{border-color:var(--red)}
+
+.driver-list{overflow-y:auto;flex:1}
+.d-item{padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;
+        display:flex;align-items:center;gap:9px;transition:background .15s}
+.d-item:hover{background:var(--surface2)}
+.d-item.sel{background:rgba(196,30,36,.1);border-left:3px solid var(--red)}
+.d-ava{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+       justify-content:center;font-family:var(--font-d);font-weight:700;font-size:12px;flex-shrink:0}
+.d-info{flex:1;min-width:0}
+.d-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d-sub{font-size:10px;color:var(--text-muted);margin-top:1px}
+.d-pct{font-family:var(--font-d);font-weight:700;font-size:13px;flex-shrink:0}
+
+/* ── CONTENT ── */
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── STATS ── */
+.stats{display:flex;background:var(--surface);border-bottom:1px solid var(--border)}
+.stat{flex:1;padding:8px 14px;text-align:center;border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat-v{font-family:var(--font-d);font-weight:800;font-size:20px}
+.stat-l{font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-top:1px}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;gap:2px}
+.tab{padding:11px 16px 9px;font-family:var(--font-d);font-weight:600;font-size:13px;
+     letter-spacing:.5px;color:var(--text-muted);cursor:pointer;
+     border-bottom:2px solid transparent;transition:all .15s;text-transform:uppercase}
+.tab:hover{color:var(--text)}.tab.on{color:#fff;border-bottom-color:var(--red)}
+
+/* ── DETAIL ── */
+.detail{flex:1;overflow-y:auto;padding:20px}
+.d-hdr{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px;
+       padding-bottom:14px;border-bottom:1px solid var(--border)}
+.d-big-ava{width:48px;height:48px;border-radius:8px;display:flex;align-items:center;
+           justify-content:center;font-family:var(--font-d);font-weight:800;font-size:18px;flex-shrink:0}
+.d-full-name{font-family:var(--font-d);font-weight:700;font-size:20px;letter-spacing:.3px;line-height:1.2}
+.d-meta{font-size:11px;color:var(--text-muted);margin-top:5px;display:flex;gap:12px;flex-wrap:wrap}
+
+.poly-wrap{margin-bottom:18px}
+.poly-hdr{display:flex;justify-content:space-between;margin-bottom:5px}
+.poly-tit{font-family:var(--font-d);font-size:11px;font-weight:600;
+          letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted)}
+.poly-val{font-family:var(--font-d);font-weight:800;font-size:17px}
+.poly-bar{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.poly-fill{height:100%;border-radius:4px;transition:width .6s ease}
+
+.sec-lbl{font-family:var(--font-d);font-weight:700;font-size:10px;letter-spacing:2px;
+         text-transform:uppercase;color:var(--text-muted);margin-bottom:7px;margin-top:14px}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{padding:3px 9px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid transparent}
+.tag-y{background:rgba(26,122,60,.2);border-color:rgba(26,122,60,.5);color:var(--green-light)}
+.tag-n{background:rgba(30,34,44,.5);border-color:var(--border);color:var(--text-dim)}
+
+.cc-grid{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+.cc-card{background:var(--surface);border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.cc-card.s-serv{border-left:4px solid var(--blue-light)}
+.cc-card.s-puede{border-left:4px solid var(--green-light)}
+.cc-card.s-falta{border-left:4px solid var(--orange-light)}
+.cc-hdr{padding:9px 12px;display:flex;align-items:center;gap:9px}
+.cc-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cc-name{font-family:var(--font-d);font-weight:600;font-size:13px;letter-spacing:.3px;flex:1}
+.cc-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.5px;text-transform:uppercase}
+.b-serv{background:var(--blue-bg);color:var(--blue-light);border:1px solid #1d4ed8}
+.b-puede{background:var(--green-bg);color:var(--green-light);border:1px solid var(--green)}
+.b-falta{background:var(--orange-bg);color:var(--orange-light);border:1px solid var(--orange)}
+.cc-miss{padding:7px 12px 10px 30px;border-top:1px solid var(--border);background:rgba(234,88,12,.04)}
+.miss-tit{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--orange);margin-bottom:5px}
+.miss-items{display:flex;flex-wrap:wrap;gap:4px}
+.miss-item{display:flex;align-items:center;gap:4px;padding:3px 7px;border-radius:4px;font-size:11px;font-weight:600}
+.mi-aval{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+.mi-comp{background:rgba(251,191,36,.12);color:var(--amber-light);border:1px solid rgba(251,191,36,.3)}
+.mi-unit{background:rgba(234,88,12,.15);color:var(--orange-light);border:1px solid rgba(234,88,12,.3)}
+
+/* ── MATRIX ── */
+.mat-wrap{overflow:auto;flex:1}
+.mat-tbl{border-collapse:collapse;min-width:100%;font-size:11px}
+.mat-tbl th{background:var(--surface);padding:7px 5px;text-align:center;
+            font-family:var(--font-d);font-weight:700;font-size:10px;letter-spacing:.5px;
+            text-transform:uppercase;color:var(--text-muted);border:1px solid var(--border);
+            white-space:nowrap;position:sticky;top:0;z-index:5;cursor:pointer}
+.mat-tbl th:hover{color:#fff}
+.mat-tbl th.th-d{min-width:190px;text-align:left;padding-left:12px;
+                 position:sticky;left:0;z-index:10;background:var(--surface)}
+.mat-tbl td{border:1px solid var(--border);padding:4px 3px;text-align:center;vertical-align:middle}
+.mat-tbl td.td-d{text-align:left;padding-left:10px;background:var(--surface);position:sticky;
+                 left:0;z-index:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                 max-width:190px;cursor:pointer}
+.mat-tbl tr:hover td{background:rgba(255,255,255,.025)}
+.mat-tbl tr:hover td.td-d{background:var(--surface2)}
+.c-serv{background:rgba(29,78,216,.15);color:var(--blue-light);font-weight:700}
+.c-puede{background:rgba(26,122,60,.15);color:var(--green-light);font-weight:700}
+.c-falta{background:rgba(234,88,12,.2);color:var(--orange-light);font-weight:700;
+         cursor:pointer;font-size:13px;position:relative}
+.c-falta:hover{background:rgba(234,88,12,.35)}
+
+/* ── LOADING/EMPTY ── */
+.loading{display:flex;align-items:center;justify-content:center;
+         height:100%;flex-direction:column;gap:12px;color:var(--text-muted)}
+.spinner{width:36px;height:36px;border:3px solid var(--border);
+         border-top-color:var(--red);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{display:flex;flex-direction:column;align-items:center;
+       justify-content:center;height:200px;color:var(--text-dim);gap:8px}
+.err-box{background:rgba(196,30,36,.1);border:1px solid var(--red);border-radius:6px;
+         padding:12px 16px;margin:16px;font-size:13px;color:#f87171}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:#3a3f4e;border-radius:3px}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div style="display:flex;align-items:center;justify-content:center;
+              height:100vh;background:#111317;color:#8892a4;
+              font-family:sans-serif;gap:14px;flex-direction:column">
+    <div class="spinner"></div>
+    <span style="font-size:13px">Conectando con Google Sheets…</span>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN — PEGAR AQUÍ LA URL DE TU APPS SCRIPT WEB APP
+// ═══════════════════════════════════════════════════════════════════
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzkeddUK8VdnoE9xW_NOJZ8gZcA8NEel0ehVn3dIL5599I3ZPcRSjye-Ov-KYQ95mkT/exec';
+// Ejemplo:
+// const BACKEND_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
+// ═══════════════════════════════════════════════════════════════════
+
+const COMP_LABELS = ['Lic. CAT E1','Cargas Peligrosas','Manejo Defensivo','Carnet Hidrogrúa'];
+const UNIT_LABELS = ['Chupa 9mts','Superchupa','Vactor','Piletero','Hidrogrúa',
+                     'Capilar','Agua','Regador','Cisterna Líq.','Playo','Portacontenedor'];
+
+// Auto-refresh cada 5 minutos
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+
+// ═══════════════════════════════════════════════════════════════════
+//  ESTADO
+// ═══════════════════════════════════════════════════════════════════
+let DATA   = null;
+let LOADING= true;
+let ERR    = null;
+
+let ST = {
+  selected:  null,
+  tab:       'detail',
+  search:    '',
+  filter:    'all',
+  ccFilter:  null,
+  alert:     null,
+  lastUpd:   null,
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  CARGA DE DATOS — JSONP via Apps Script
+//  JSONP funciona desde file:// sin ningún problema de CORS
+// ═══════════════════════════════════════════════════════════════════
+function loadDataJsonp() {
+  return new Promise((resolve, reject) => {
+    // Nombre único para el callback
+    const cbName = '_griff_' + Date.now();
+
+    // El script de Apps Script llama a esta función con los datos
+    window[cbName] = function(data) {
+      cleanup();
+      if (data && data.error) return reject(new Error(data.message));
+      resolve(data);
+    };
+
+    const script = document.createElement('script');
+    script.src = `${BACKEND_URL}?action=getData&callback=${cbName}`;
+    script.onerror = () => { cleanup(); reject(new Error('No se pudo conectar con el servidor. Verificá la URL en BACKEND_URL.')); };
+
+    const cleanup = () => {
+      delete window[cbName];
+      if (script.parentNode) document.head.removeChild(script);
+    };
+
+    // Timeout de 15 segundos
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Tiempo de espera agotado (15s). Verificá la URL.')); }, 15000);
+    script.onload = () => clearTimeout(timer);
+
+    document.head.appendChild(script);
+  });
+}
+
+// Con gviz la fila 0 ya son los encabezados
+// Pero si vienen vacíos (hojas con logo/banner) busca la primera fila con CUIL
+function findHeaderRow(rows) {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    if (rows[i].some(c => String(c).toUpperCase().trim() === 'CUIL')) return i;
+  }
+  // fallback: fila 0
+  return 0;
+}
+
+function toInt(v) {
+  const n = parseInt(String(v).replace(/[^0-9]/g,''), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+// ── Parse DATOS_Personal ──────────────────────────────────────────
+function parseDatos(rows) {
+  const hi = findHeaderRow(rows);
+  const headers = rows[hi].map(h => String(h).trim());
+  const data = rows.slice(hi + 1);
+  const conductores = [];
+
+  // Encontrar índices de columnas por nombre
+  const idx = name => headers.findIndex(h => h.toLowerCase().includes(name.toLowerCase()));
+
+  const iCUIL     = idx('CUIL');
+  const iLeg      = idx('Legajo');
+  const iNom      = idx('Nombre');
+  const iPuesto   = idx('Puesto');
+  const iContrato = idx('Contrato');
+  const iZona     = idx('Zona');
+  const iEmpresa  = idx('Empresa');
+
+  // Competencias (cols H-K = índices 7-10)
+  const iComp = [idx('CAT'), idx('Cargas'), idx('Manejo'), idx('Hidro')];
+  // Unidades (cols L-V = índices 11-21)
+  const unitNames = ['Chupa','Superchupa','Vactor','Piletero','Hidro','Capilar','Agua','Regador','Cisterna','Playo','Porta'];
+  const iUnit = unitNames.map(u => idx(u));
+
+  data.forEach(row => {
+    const cuil = row[iCUIL] || '';
+    if (!cuil || String(cuil).trim() === '' || String(cuil).trim() === '0') return;
+
+    const comps = iComp.map(i => i >= 0 ? toInt(row[i]) : 0);
+    const units = iUnit.map(i => i >= 0 ? toInt(row[i]) : 0);
+    // Si no encontró columnas por nombre, usar posición fija (cols 7-10 y 11-21)
+    const compsF = comps.some(v=>v>0) ? comps : [7,8,9,10].map(i => toInt(row[i]));
+    const unitsF = units.some(v=>v>0) ? units : [11,12,13,14,15,16,17,18,19,20,21].map(i => toInt(row[i] || 0));
+
+    const score = unitsF.reduce((a,b)=>a+b, 0);
+    conductores.push({
+      cuil:     toInt(cuil),
+      legajo:   String(row[iLeg] || '').trim(),
+      nombre:   String(row[iNom] || '').trim(),
+      puesto:   String(row[iPuesto] || '').trim(),
+      contrato: String(row[iContrato] || '').trim(),
+      zona:     String(row[iZona] || '').trim(),
+      empresa:  iEmpresa >= 0 ? String(row[iEmpresa] || '').trim() : '',
+      comps:    compsF,
+      units:    unitsF,
+      score,
+      pct: Math.round(score / 11 * 100),
+    });
+  });
+
+  return conductores;
+}
+
+// ── Parse CONFIG_Servicios ────────────────────────────────────────
+function parseConfig(rows) {
+  const hi = findHeaderRow(rows);
+  if (hi < 0) return FALLBACK_CONTRATOS;
+  const data = rows.slice(hi + 1);
+  const contratos = [];
+
+  data.forEach(row => {
+    const ccId = String(row[0] || '').trim();
+    if (!ccId || ccId === '') return;
+    const label = String(row[1] || ccId).trim();
+
+    // comp_req: cols 2-5 (C-F)
+    const comp_req = [2,3,4,5].map(i => toInt(row[i] || 0));
+    // unit_req: cols 6-16 (G-Q)
+    const unit_req = [6,7,8,9,10,11,12,13,14,15,16].map(i => toInt(row[i] || 0));
+
+    contratos.push({ id: ccId, label, comp_req, unit_req });
+  });
+
+  return contratos.length > 0 ? contratos : FALLBACK_CONTRATOS;
+}
+
+// ── Parse BASE_Avales ─────────────────────────────────────────────
+function parseAvales(rows) {
+  const hi = findHeaderRow(rows);
+  if (hi < 0) return {};
+  const data = rows.slice(hi + 1);
+  const avales = {};
+
+  data.forEach(row => {
+    const cuil = toInt(row[0] || 0);
+    const cc   = String(row[2] || '').trim();
+    const av   = String(row[3] || '').toUpperCase().trim();
+    if (!cuil || !cc || av !== 'SI') return;
+    const k = String(cuil);
+    if (!avales[k]) avales[k] = [];
+    if (!avales[k].includes(cc)) avales[k].push(cc);
+  });
+
+  return avales;
+}
+
+// ── Cargar datos desde Apps Script vía JSONP ─────────────────────
+async function loadData() {
+  LOADING = true; ERR = null;
+  render();
+
+  try {
+    if (!BACKEND_URL || BACKEND_URL === 'TU_URL_AQUI') {
+      throw new Error('Falta configurar BACKEND_URL. Abrí el archivo HTML con el Bloc de notas y pegá tu URL de Apps Script.');
+    }
+
+    console.log('[Griffouliere] Cargando datos vía JSONP desde Apps Script…');
+    const result = await loadDataJsonp();
+
+    if (!result.conductores || result.conductores.length === 0) {
+      throw new Error('No se encontraron conductores. Verificá que el SS_ID en Code.gs sea correcto.');
+    }
+
+    DATA = {
+      conductores: result.conductores,
+      contratos:   result.contratos && result.contratos.length > 0 ? result.contratos : FALLBACK_CONTRATOS,
+      avales:      result.avales || {},
+      compLabels:  COMP_LABELS,
+      unitLabels:  UNIT_LABELS,
+    };
+
+    ST.lastUpd = new Date().toLocaleTimeString('es-AR');
+    if (!ST.selected && DATA.conductores.length > 0) ST.selected = DATA.conductores[0].cuil;
+
+    console.log(`[Griffouliere] ✓ ${DATA.conductores.length} conductores, ${DATA.contratos.length} contratos, ${Object.keys(DATA.avales).length} con aval`);
+
+  } catch(e) {
+    ERR = e.message;
+    console.error('[Griffouliere] ✗', e.message);
+  }
+
+  LOADING = false;
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  LÓGICA DE HABILITACIÓN
+// ═══════════════════════════════════════════════════════════════════
+function getStatus(driver, contract) {
+  if (driver.contrato === contract.id) return { status: 'serv', missing: [] };
+
+  const k = String(driver.cuil);
+  const hasAval = DATA.avales[k] && DATA.avales[k].includes(contract.id);
+  const missing = [];
+
+  if (!hasAval) missing.push({ tipo: 'aval', label: 'Aval / Habilitación' });
+  contract.comp_req.forEach((r,i) => {
+    if (r && driver.comps[i] < 1) missing.push({ tipo:'comp', label: COMP_LABELS[i] });
+  });
+  contract.unit_req.forEach((r,i) => {
+    if (r && driver.units[i] < 1) missing.push({ tipo:'unit', label: UNIT_LABELS[i] });
+  });
+
+  return missing.length ? { status: 'falta', missing } : { status: 'puede', missing: [] };
+}
+
+function polyColor(pct) { return pct>=70?'var(--green-light)':pct>=40?'var(--amber-light)':'#f87171'; }
+function polyBar(pct)   { return pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)'; }
+function polyLvl(pct)   { return pct>=70?'ALTA':pct>=40?'MEDIA':'BAJA'; }
+function initials(n)    { return n.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase(); }
+function avaStyle(pct)  {
+  if(pct>=70) return {bg:'rgba(26,122,60,.3)',fg:'#22c55e'};
+  if(pct>=40) return {bg:'rgba(217,119,6,.25)',fg:'#fbbf24'};
+  return {bg:'rgba(196,30,36,.25)',fg:'#f87171'};
+}
+
+function filtered() {
+  if (!DATA) return [];
+  let list = DATA.conductores;
+  if (ST.search) {
+    const q = ST.search.toLowerCase();
+    list = list.filter(d => d.nombre.toLowerCase().includes(q)
+                         || String(d.cuil).includes(q)
+                         || d.zona.toLowerCase().includes(q));
+  }
+  const ct = ST.ccFilter ? DATA.contratos.find(c=>c.id===ST.ccFilter) : null;
+  if (ct && ST.filter !== 'all') {
+    list = list.filter(d => {
+      const s = getStatus(d, ct).status;
+      return s === ST.filter;
+    });
+  }
+  return list;
+}
+
+function statsFor(ccId) {
+  if (!DATA || !ccId) return {serv:0,puede:0,falta:0};
+  const ct = DATA.contratos.find(c=>c.id===ccId);
+  if (!ct) return {serv:0,puede:0,falta:0};
+  const r = {serv:0,puede:0,falta:0};
+  DATA.conductores.forEach(d => r[getStatus(d,ct).status]++);
+  return r;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════════════════════
+function render() {
+  document.getElementById('app').innerHTML = buildApp();
+  bindEvents();
+}
+
+function buildApp() {
+  const drivers = filtered();
+  const sel  = ST.selected && DATA ? DATA.conductores.find(d=>d.cuil===ST.selected) : null;
+  const stats= statsFor(ST.ccFilter);
+  const total= DATA ? DATA.conductores.length : 0;
+
+  return `
+  <nav class="nav">
+    <div class="nav-logo">GRIFFOULIERE <span>TRANSPORTES</span></div>
+    <span class="nav-badge">LOGÍSTICA</span>
+    <div class="nav-right">
+      ${ST.lastUpd ? `<span class="last-upd">🔄 ${ST.lastUpd}</span>` : ''}
+      <button class="btn" id="btnRef" ${LOADING?'disabled':''}>
+        ${LOADING ? '⟳ Cargando…' : '⟳ Actualizar'}
+      </button>
+    </div>
+  </nav>
+
+  <div class="alert-wrap ${ST.alert?'show':''}">
+    ${ST.alert ? `
+    <div class="alert-box">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-body">
+        <div class="alert-title">⛔ NO SE PUEDE ASIGNAR — ${ST.alert.nombre}</div>
+        <div class="alert-detail">
+          Para el contrato <strong>${ST.alert.contrato}</strong> le faltan:
+          ${ST.alert.missing.map(m=>`<span class="miss-tag">${m.tipo==='aval'?'🔑':m.tipo==='comp'?'📋':'🚛'} ${m.label}</span>`).join('')}
+        </div>
+      </div>
+      <button class="alert-close" id="btnAlertClose">✕</button>
+    </div>` : ''}
+  </div>
+
+  <div class="main">
+    <div class="sidebar">
+      <div class="sb-head">
+        <div class="sb-title">Personal · ${total} conductores</div>
+        <div class="search">
+          <span class="search-ico">⌕</span>
+          <input id="srch" type="text" placeholder="Buscar nombre, CUIL, zona…" value="${ST.search}">
+        </div>
+      </div>
+      <div class="chips">
+        <div class="chip chip-all ${ST.filter==='all'?'on':''}" data-f="all">Todos</div>
+        <div class="chip chip-serv ${ST.filter==='serv'?'on':''}" data-f="serv">En servicio</div>
+        <div class="chip chip-puede ${ST.filter==='puede'?'on':''}" data-f="puede">Puede</div>
+        <div class="chip chip-falta ${ST.filter==='falta'?'on':''}" data-f="falta">Falta</div>
+      </div>
+      <div class="cc-sel-wrap">
+        <select id="ccSel">
+          <option value="">— Filtrar por contrato —</option>
+          ${DATA ? DATA.contratos.map(c=>`<option value="${c.id}" ${ST.ccFilter===c.id?'selected':''}>${c.label}</option>`).join('') : ''}
+        </select>
+      </div>
+      <div class="driver-list">
+        ${LOADING ? '<div class="loading" style="height:200px"><div class="spinner"></div><span style="font-size:12px">Leyendo Sheets…</span></div>' :
+          ERR     ? `<div class="err-box">❌ ${ERR}</div>` :
+          drivers.length===0 ? '<div class="empty"><span style="font-size:12px">Sin resultados</span></div>' :
+          drivers.map(d => {
+            const av=avaStyle(d.pct);
+            return `<div class="d-item ${sel&&sel.cuil===d.cuil?'sel':''}" data-cuil="${d.cuil}">
+              <div class="d-ava" style="background:${av.bg};color:${av.fg}">${initials(d.nombre)}</div>
+              <div class="d-info">
+                <div class="d-name">${d.nombre}</div>
+                <div class="d-sub">${d.puesto.replace('Conductor de ','C.')} · ${d.zona}</div>
+              </div>
+              <div class="d-pct" style="color:${polyColor(d.pct)}">${d.pct}%</div>
+            </div>`;
+          }).join('')}
+      </div>
+    </div>
+
+    <div class="content">
+      ${ST.ccFilter && DATA ? `
+      <div class="stats">
+        <div class="stat"><div class="stat-v" style="color:var(--blue-light)">${stats.serv}</div><div class="stat-l">En Servicio</div></div>
+        <div class="stat"><div class="stat-v" style="color:var(--green-light)">${stats.puede}</div><div class="stat-l">Puede Trabajar</div></div>
+        <div class="stat"><div class="stat-v" style="color:var(--orange-light)">${stats.falta}</div><div class="stat-l">Le Falta</div></div>
+        <div class="stat" style="flex:2;text-align:left;padding-left:16px">
+          <div style="font-size:10px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase">Contrato activo</div>
+          <div style="font-size:12px;font-weight:600;margin-top:2px">${DATA.contratos.find(c=>c.id===ST.ccFilter)?.label}</div>
+        </div>
+        <div class="stat"><button class="btn" id="btnClearF">✕ Limpiar</button></div>
+      </div>` : ''}
+
+      <div class="tabs">
+        <div class="tab ${ST.tab==='detail'?'on':''}" data-tab="detail">Vista Detalle</div>
+        <div class="tab ${ST.tab==='matrix'?'on':''}" data-tab="matrix">Matriz Completa</div>
+      </div>
+
+      ${ST.tab==='detail' ? buildDetail(sel) : buildMatrix(drivers)}
+    </div>
+  </div>`;
+}
+
+// ── Detail view ───────────────────────────────────────────────────
+function buildDetail(sel) {
+  if (!DATA) return '';
+  if (!sel) return `<div class="detail"><div class="empty" style="height:300px">
+    <span style="font-size:36px">👤</span>
+    <span style="font-family:var(--font-d);font-size:15px;letter-spacing:1px">Seleccione un conductor</span>
+  </div></div>`;
+
+  const av=avaStyle(sel.pct), lvl=polyLvl(sel.pct);
+
+  return `<div class="detail">
+    <div class="d-hdr">
+      <div class="d-big-ava" style="background:${av.bg};color:${av.fg}">${initials(sel.nombre)}</div>
+      <div>
+        <div class="d-full-name">${sel.nombre}</div>
+        <div class="d-meta">
+          <span>👷 ${sel.puesto}</span>
+          <span>📍 ${sel.zona}</span>
+          <span>🪪 ${sel.cuil}</span>
+          ${sel.empresa ? `<span>🏢 ${sel.empresa}</span>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="poly-wrap">
+      <div class="poly-hdr">
+        <div class="poly-tit">Polivalencia — ${sel.score}/11 unidades</div>
+        <div class="poly-val" style="color:${polyColor(sel.pct)}">${sel.pct}% <span style="font-size:12px;font-weight:600">${lvl}</span></div>
+      </div>
+      <div class="poly-bar"><div class="poly-fill" style="width:${sel.pct}%;background:${polyBar(sel.pct)}"></div></div>
+    </div>
+
+    <div class="sec-lbl">Certificaciones</div>
+    <div class="tags">
+      ${COMP_LABELS.map((l,i)=>`<div class="tag ${sel.comps[i]?'tag-y':'tag-n'}">${sel.comps[i]?'✓':'✗'} ${l}</div>`).join('')}
+    </div>
+
+    <div class="sec-lbl">Unidades habilitadas</div>
+    <div class="tags">
+      ${UNIT_LABELS.map((l,i)=>`<div class="tag ${sel.units[i]?'tag-y':'tag-n'}">${sel.units[i]?'✓':'✗'} ${l}</div>`).join('')}
+    </div>
+
+    <div class="sec-lbl" style="margin-top:18px">Habilitación por contrato</div>
+    <div class="cc-grid">
+      ${DATA.contratos.map(ct => {
+        const {status,missing}=getStatus(sel,ct);
+        const cls=`s-${status==='serv'?'serv':status==='puede'?'puede':'falta'}`;
+        const dot=status==='serv'?'var(--blue-light)':status==='puede'?'var(--green-light)':'var(--orange-light)';
+        const bCls=status==='serv'?'b-serv':status==='puede'?'b-puede':'b-falta';
+        const bTxt=status==='serv'?'✔ EN SERVICIO':status==='puede'?'✔ PUEDE':'⚠ FALTA';
+        return `<div class="cc-card ${cls}">
+          <div class="cc-hdr" ${status==='falta'?`data-alert="${sel.cuil}|${ct.id}"`:''} style="${status==='falta'?'cursor:pointer':''}">
+            <div class="cc-dot" style="background:${dot}"></div>
+            <div class="cc-name">${ct.label}</div>
+            <div class="cc-badge ${bCls}">${bTxt}</div>
+          </div>
+          ${status==='falta'?`<div class="cc-miss">
+            <div class="miss-tit">⛔ Le falta para trabajar aquí:</div>
+            <div class="miss-items">
+              ${missing.map(m=>`<div class="miss-item mi-${m.tipo}">${m.tipo==='aval'?'🔑':m.tipo==='comp'?'📋':'🚛'} ${m.label}</div>`).join('')}
+            </div>
+          </div>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+// ── Matrix view ───────────────────────────────────────────────────
+function buildMatrix(drivers) {
+  if (!DATA) return '';
+  const MAX=60, shown=drivers.slice(0,MAX);
+
+  return `<div class="mat-wrap">
+    <table class="mat-tbl">
+      <thead><tr>
+        <th class="th-d">Conductor</th>
+        ${DATA.contratos.map(ct=>`<th data-cc="${ct.id}">${ct.label.split('·').slice(-2).join('<br>').trim()}</th>`).join('')}
+        <th>Pol.</th>
+      </tr></thead>
+      <tbody>
+        ${shown.map(d=>`<tr>
+          <td class="td-d" data-cuil="${d.cuil}" title="${d.nombre}">${d.nombre.length>26?d.nombre.slice(0,25)+'…':d.nombre}</td>
+          ${DATA.contratos.map(ct=>{
+            const {status,missing}=getStatus(d,ct);
+            if(status==='serv')  return `<td class="c-serv" title="En servicio">✔</td>`;
+            if(status==='puede') return `<td class="c-puede" title="Puede trabajar">✔</td>`;
+            const tip=missing.map(m=>(m.tipo==='aval'?'🔑':m.tipo==='comp'?'📋':'🚛')+' '+m.label).join('\n');
+            return `<td class="c-falta" data-alert="${d.cuil}|${ct.id}" title="${tip}">⚠</td>`;
+          }).join('')}
+          <td style="color:${polyColor(d.pct)};font-weight:700;font-size:10px">${d.pct}%</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    ${drivers.length>MAX?`<div style="text-align:center;padding:10px;color:var(--text-muted);font-size:11px">
+      Mostrando ${MAX} de ${drivers.length} — usá la búsqueda para filtrar
+    </div>`:''}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  EVENTOS
+// ═══════════════════════════════════════════════════════════════════
+function bindEvents() {
+  // Refresh
+  document.getElementById('btnRef')?.addEventListener('click', loadData);
+
+  // Close alert
+  document.getElementById('btnAlertClose')?.addEventListener('click', () => {
+    ST.alert = null; render();
+  });
+
+  // Clear filter
+  document.getElementById('btnClearF')?.addEventListener('click', () => {
+    ST.ccFilter=null; ST.filter='all'; render();
+  });
+
+  // Search
+  const srch = document.getElementById('srch');
+  if (srch) srch.addEventListener('input', e => {
+    ST.search = e.target.value; render();
+    const el=document.getElementById('srch');
+    if(el){el.focus();el.setSelectionRange(ST.search.length,ST.search.length);}
+  });
+
+  // Contract select
+  document.getElementById('ccSel')?.addEventListener('change', e => {
+    ST.ccFilter = e.target.value || null; render();
+  });
+
+  // Filter chips
+  document.querySelectorAll('[data-f]').forEach(el =>
+    el.addEventListener('click', () => { ST.filter=el.dataset.f; render(); }));
+
+  // Tabs
+  document.querySelectorAll('[data-tab]').forEach(el =>
+    el.addEventListener('click', () => { ST.tab=el.dataset.tab; render(); }));
+
+  // Driver list click
+  document.querySelectorAll('.d-item[data-cuil]').forEach(el =>
+    el.addEventListener('click', () => {
+      ST.selected=parseInt(el.dataset.cuil); ST.tab='detail'; render();
+    }));
+
+  // Matrix driver click
+  document.querySelectorAll('.td-d[data-cuil]').forEach(el =>
+    el.addEventListener('click', () => {
+      ST.selected=parseInt(el.dataset.cuil); ST.tab='detail'; render();
+    }));
+
+  // Matrix contract header
+  document.querySelectorAll('th[data-cc]').forEach(el =>
+    el.addEventListener('click', () => {
+      ST.ccFilter = ST.ccFilter===el.dataset.cc ? null : el.dataset.cc; render();
+    }));
+
+  // Alert triggers
+  document.querySelectorAll('[data-alert]').forEach(el =>
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!DATA) return;
+      const [cuil,ccId] = el.dataset.alert.split('|');
+      const d  = DATA.conductores.find(x=>String(x.cuil)===cuil);
+      const ct = DATA.contratos.find(c=>c.id===ccId);
+      if (!d||!ct) return;
+      const {missing}=getStatus(d,ct);
+      ST.alert={nombre:d.nombre, contrato:ct.label, missing};
+      render();
+    }));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FALLBACK CONFIG (si CONFIG_Servicios no carga)
+// ═══════════════════════════════════════════════════════════════════
+const FALLBACK_CONTRATOS = [
+  {"id":"ARG-TTELARGDISTANCIA-VAR","label":"ARG · Larga Distancia","comp_req":[1,1,1,0],"unit_req":[0,0,0,0,1,0,0,0,0,1,0]},
+  {"id":"MGUE-4900096003-LIQ/SOL-YPF","label":"MGUE · Líq/Sól · YPF","comp_req":[1,1,1,1],"unit_req":[1,0,1,0,1,1,1,0,1,1,0]},
+  {"id":"MZAN-4900096003-LIQUIDAS-PS","label":"MZAN · Líquidas · PS","comp_req":[1,1,1,0],"unit_req":[1,1,0,0,0,0,0,0,1,1,0]},
+  {"id":"MZAN-4900096003-SOLIDAS-PS","label":"MZAN · Sólidas · PS","comp_req":[1,1,1,1],"unit_req":[1,0,0,0,1,0,0,0,0,1,0]},
+  {"id":"MZAN-4900114954-DESTILERIA-YPF","label":"MZAN · Destilería · YPF","comp_req":[1,1,1,0],"unit_req":[1,1,1,0,0,0,0,0,1,0,0]},
+  {"id":"MZAN-LIQ/SOL/PORTA-TANGOENERGY","label":"MZAN · Liq/Sól/Porta · TE","comp_req":[1,1,1,0],"unit_req":[1,1,0,0,0,0,0,0,1,1,1]},
+  {"id":"NQN-4900096002-LIQSUPCHUPA-YPF","label":"NQN · LiqSupChupa · YPF","comp_req":[1,1,1,0],"unit_req":[1,1,0,0,0,0,0,1,0,1,0]},
+  {"id":"NQN-4900100771-RDLS-YPF","label":"NQN · RDLS · YPF","comp_req":[1,0,1,1],"unit_req":[0,0,0,0,1,0,0,0,0,1,0]},
+  {"id":"NQN-490012074-SOLIDAS-YPF","label":"NQN · Sólidas · YPF","comp_req":[1,0,1,1],"unit_req":[0,0,0,0,1,0,0,0,0,1,0]},
+  {"id":"NQN-CTOCW1009149-SHELL-CAMSTH","label":"NQN · Shell · CAMSTH","comp_req":[1,1,1,0],"unit_req":[1,0,0,0,0,0,0,0,1,1,0]},
+  {"id":"NQN-TRANSPORTESANDBOX-TSB","label":"NQN · Transport · TSB","comp_req":[1,1,1,0],"unit_req":[1,1,0,0,0,0,0,0,0,1,0]},
+];
+
+// ═══════════════════════════════════════════════════════════════════
+//  INICIO + AUTO-REFRESH
+// ═══════════════════════════════════════════════════════════════════
+render(); // mostrar spinner inmediato
+loadData();
+setInterval(loadData, AUTO_REFRESH_MS);
+</script>
+</body>
+</html>
